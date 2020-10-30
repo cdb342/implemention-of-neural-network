@@ -118,6 +118,19 @@ class MSE:
         return np.sum((Hypothesis_X-y)**2)/2
     def gradient(Hypothesis_X, y):
         return Hypothesis_X-y
+# class CrossEntropy:
+#     def activate(Hypothesis_X, y):
+#         activate_results=-np.sum(np.multiply(y[Hypothesis_X>0],np.log(Hypothesis_X[Hypothesis_X>0])))
+#         return activate_results
+#     def gradient(Hypothesis_X, y):
+#         gradient_results=np.zeros(Hypothesis_X.shape)
+#         gradient_results[Hypothesis_X>0]=-y[Hypothesis_X!=0]/(Hypothesis_X[Hypothesis_X!=0])
+#         return gradient_results
+"""
+CrossEntropy类
+activate:返回用CrossEntropy函数激活后的结果
+gradient:返回CrossEntropy函数的导数
+"""
 class CrossEntropy:
     def activate(Hypothesis_X, y):
         return -np.sum(np.multiply(y,np.log(Hypothesis_X+10**(-8))))
@@ -171,7 +184,7 @@ class Arbitrary_Scale_Neural_Network_for_Classification():
         return self.A[-1]#返回输出层
     def backforword(self):
         """
-\       使用反向传播算法计算每一层的梯度
+        使用反向传播算法计算每一层的梯度
         """
         self.gradient_Z[-1]=np.multiply(self.gradient_A[-1],self.activation_function[-1].gradient(self.Z[-1]))
         self.gradient_b[-1]=np.sum(self.gradient_Z[-1],axis=1).reshape(self.Layer_scale[-1],1)
@@ -196,12 +209,17 @@ class Arbitrary_Scale_Neural_Network_for_Classification():
     def fit(self,X,y,test_X,test_y):
         self.X = np.asarray(X)
         self.y=np.asarray(y)
-        y = np.eye(len(np.unique(y)))[y.astype(int)].T#根据把标签转化为one-hot矩阵
+        y = np.eye(len(np.unique(y)))[y.astype(int)].T#把标签转化为one-hot矩阵
         self.loss=[]
-        index = 0
+        index = 0#batch左边索引
         self.accuracy_train=[]
         self.accuracy_test=[]
         for i in range(self.times):
+            """
+            计算每次迭代的batch
+            x_batch:每次迭代的输入特征集
+            y_batch:每次迭代的标签集
+            """
             next_index=index + self.batch_size
             if next_index<=self.X.shape[0]:
                 X_batch = self.X[index:next_index].reshape(-1,self.feature_num)
@@ -211,15 +229,21 @@ class Arbitrary_Scale_Neural_Network_for_Classification():
                 X_batch=np.concatenate((self.X[index:].reshape(-1,self.feature_num),self.X[:index2].reshape(-1,self.feature_num)),axis=0)
                 y_batch = np.concatenate((y[:, index:].reshape(self.class_num,-1), y[:, :index2].reshape(self.class_num,-1)),axis=1)
             index = next_index % self.X.shape[0]
+            """
+            计算并储存用每次更新的权值预测的测试集和训练集预测准确率
+            """
             train_predict_y = self.predict(self.X)
             test_predict_y = self.predict(test_X)
-
+            self.accuracy_train.append(self.accuracy(train_predict_y, self.y))
+            self.accuracy_test.append(self.accuracy(test_predict_y, test_y))
+            """
+            计算并储存用每次更新的权值预测后的损失函数
+            """
             batch_Hypothesis_X=self.feedforword(X_batch.T)
             self.loss.append(self.loss_function.activate(batch_Hypothesis_X, y_batch))
-            self.gradient_A[-1] = self.loss_function.gradient(batch_Hypothesis_X, y_batch)
-            self.accuracy_train.append(self.accuracy(train_predict_y, self.y))
-            self.accuracy_test.append(self.accuracy(test_predict_y,test_y))
-            self.backforword()
+
+            self.gradient_A[-1] = self.loss_function.gradient(batch_Hypothesis_X, y_batch)#更新gradiengt_A[-1]
+            self.backforword()#反向传播更新梯度
     def predict(self,X):
         Hypothesis_X = self.feedforword(X.T)
         predict_y=np.argmax(Hypothesis_X,axis=0)
@@ -229,41 +253,42 @@ class Arbitrary_Scale_Neural_Network_for_Classification():
         return ac
 
 if __name__ == '__main__':
-    aa = Arbitrary_Scale_Neural_Network_for_Classification(Layer_scale=[1000,800, 800, 10],
-                                                           activation_function=[ELU(),ReLU, ReLU, sigmoid],
-                                                           learning_rate=0.1, times_interation=1000, batch_size=300,
-                                                           feature_num=784, class_num=10, loss_function=CrossEntropy)
-
-    train_X, train_y, test_X, test_y = lode_dataset.MNIST()
-    train_X_st = Standardize(train_X, train_X)
-    test_X_st = Standardize(train_X, test_X)
-    aa.fit(train_X_st, train_y, test_X_st, test_y)
+    aa = Arbitrary_Scale_Neural_Network_for_Classification(Layer_scale=[8, 8, 3],
+                                                           activation_function=[sigmoid, sigmoid, sigmoid],
+                                                           learning_rate=0.01, times_interation=1000, batch_size=40,
+                                                           feature_num=2, class_num=3, loss_function=CrossEntropy)
+    train_X, train_y, test_X, test_y = lode_dataset.Iris()
+    train_X_st = Standardize(train_X, train_X)#标准化训练集
+    test_X_st = Standardize(train_X, test_X)#标准化测试集
+    aa.fit(train_X_st, train_y, test_X_st, test_y)#
     predict_y_train = aa.predict(train_X_st)
-    print("training set accuracy:", aa.accuracy_train[-1])
+    print("training set accuracy:", aa.accuracy_train[-1])#输出训练集预测准确率
     predict_y_test = aa.predict(test_X_st)
-    print("test set accuracy:", aa.accuracy_test[-1])
+    print("test set accuracy:", aa.accuracy_test[-1])#输出测试集预测准确率
     print(aa.loss)
 
     """
-    Visualization
+    可视化部分
     """
-    fig, ax = plt.subplots(1, 3, figsize=(15, 5))  # Create canvas and axis
-
+    fig, ax = plt.subplots(1, 3, figsize=(15, 5))  # 创建画布和坐标轴
+    """
+    计算分布图的坐标轴端点位置
+    """
     left_border=int(np.min([np.min(train_X[:,0]),np.min(test_X[:,0])]))
     right_border=int(np.max([np.max(train_X[:,0]),np.max(test_X[:,0])])+1)
     bottom_border=int(np.min([np.min(train_X[:,1]),np.min(test_X[:,1])]))
     top_border=int(np.max([np.max(train_X[:,1]),np.max(test_X[:,1])])+1)
 
-    ax[0].set_xlim(left_border, right_border)  # Set the x-axis range
-    ax[0].set_ylim(bottom_border, top_border)  # Set the y-axis range
-    ax[0].scatter(train_X[:, 0], train_X[:, 1], c=train_y, cmap='Dark2',s=10,marker='o',label='Training set')  # Plot the training set distribution on the first axis
-    ax[0].scatter(test_X[:, 0], test_X[:, 1], c=test_y, cmap='Dark2',s=10,marker='x',label='Test set')  # Plot the test set distribution on the first axis
-    ax[0].legend()
-    ax[0].set_xlabel("Feature1")  # Set x-axis label
-    ax[0].set_ylabel("Feature2")  # Set y-axis label
-    ax[0].set_title("Classification Boundaries")  # Set title
-    ax[1].set_xlim(0, aa.times-1)  # Set the x-axis range
-    ax[1].set_ylim(int(np.min(aa.loss)), int(np.max(aa.loss)+1))  # Set the y-axis range
+    ax[0].set_xlim(left_border, right_border)  # 设置x轴坐标
+    ax[0].set_ylim(bottom_border, top_border)  # 设置y轴坐标
+    ax[0].scatter(train_X[:, 0], train_X[:, 1], c=train_y, cmap='Dark2',s=10,marker='o',label='Training set')  # 在第一个坐标轴上绘制训练集的分布
+    ax[0].scatter(test_X[:, 0], test_X[:, 1], c=test_y, cmap='Dark2',s=10,marker='x',label='Test set')  # 在第一个坐标轴上绘制测试集的分布
+    ax[0].legend()#显示图例
+    ax[0].set_xlabel("Feature1")  # 设置x轴标签
+    ax[0].set_ylabel("Feature2")  # 设置y轴标签
+    ax[0].set_title("Classification Boundaries")  # 设置标题
+    ax[1].set_xlim(0, aa.times-1)
+    ax[1].set_ylim(int(np.min(aa.loss)), int(np.max(aa.loss)+1))
     ax[1].set_xlabel("Iteration")
     ax[1].set_ylabel("Cost Function")
     ax[1].set_title("Cost Change")
@@ -273,29 +298,30 @@ if __name__ == '__main__':
     ax[2].set_ylabel("Accuracy")
     ax[2].set_title("Accuracy Change")
 
+    """
+    绘制分类边界
+    仅适输入特征数为2的情况
+    """
+    feature1 = np.linspace(left_border, right_border, 400)
+    feature2 = np.linspace(bottom_border, top_border, 400)
+    XX1, XX2 = np.meshgrid(feature1, feature2)  # 生成网格矩阵，用以绘制分类边界
+    XX = np.c_[XX1.ravel(), XX2.ravel()]  # 平铺并合并XX1和XX2，用以预测每个点的分类值
+    XX_st=Standardize(train_X,XX)#标准化
+    ZZ=aa.predict(XX_st).reshape(XX1.shape)
+    cont = ax[0].contourf(XX1, XX2, ZZ, alpha=0.2, cmap='Set3')  # 在第一个坐标轴上绘制分类边界
 
-    # feature1 = np.linspace(left_border, right_border, 400)  # Generate 400 numbers evenly between 1.5 and 5
-    # feature2 = np.linspace(bottom_border, top_border, 400)  ##Generate 400 numbers evenly between 0 and 3
-    # XX1, XX2 = np.meshgrid(feature1, feature2)  # Generate grid point coordinate matrix
-    # XX = np.c_[XX1.ravel(), XX2.ravel()]  # Flatten and merge XX1 and XX2 to facilitate the prediction of the classification of each point on the grid
-    # XX_st=Standardize(train_X,XX)
-    # ZZ=aa.predict(XX_st).reshape(XX1.shape)
-    # cont = ax[0].contourf(XX1, XX2, ZZ, alpha=0.2, cmap='Set3')  # Draw classification boundaries
+    line_loss, = ax[1].plot([], [])  # 在第二个坐标轴上绘制损失函数下降情况
+    training_accuracy = ax[2].scatter([], [], label='training set', s=10,c='red')  #在第三个坐标轴上绘制训练集预测准确率的变化
+    test_accuracy = ax[2].scatter([], [], label='test set',s=10)  # 在第三个坐标轴上绘制测试集预测准确率的变化
+    ite = np.arange(aa.times)  #根据迭代次数生成数组
 
-    line_loss, = ax[1].plot([], [])  # Plot the loss function decline on the second axis
-    training_accuracy = ax[2].scatter([], [], label='training set', s=10,c='red')  # Plot the changes in the prediction accuracy of the training set on the third axis
-    test_accuracy = ax[2].scatter([], [], label='test set',s=10)  # Plot the changes in the prediction accuracy of the test set on the third axis
-    ite = np.arange(aa.times)  # Iteration count array
-
-
-    def animate(i):  # Define animation update function
-        line_loss.set_data(ite[:i], aa.loss[:i])  # Update the cost for each Iteration
-        training_accuracy.set_offsets(np.stack((ite[:i], aa.accuracy_train[:i]),axis=1))  # Update the prediction accuracy of the training set for each Iteration
-        test_accuracy.set_offsets(np.stack((ite[:i], aa.accuracy_test[:i]),axis=1))  # Update the prediction accuracy of the test set for each Iteration
+    def animate(i):  # 动画更新函数
+        line_loss.set_data(ite[:i], aa.loss[:i])  #更新每次迭代的损失函数
+        training_accuracy.set_offsets(np.stack((ite[:i], aa.accuracy_train[:i]),axis=1))  # 更新训练集预测准确率随迭代的变化
+        test_accuracy.set_offsets(np.stack((ite[:i], aa.accuracy_test[:i]),axis=1))  # 更新测试集预测准确率随迭代的变化
         return  line_loss, training_accuracy, test_accuracy
 
-
-    ani = animation.FuncAnimation(fig, animate, frames=aa.times, interval=1)  # Generate animation
-    plt.legend()  # Show legend
+    ani = animation.FuncAnimation(fig, animate, frames=aa.times, interval=1)  #生成动画
+    plt.legend()  #显示图例
     plt.show()
-    #ani.save('ThreeLayers_NeuralNetwork_Iris.gif',writer='imagemagick',fps=60)#Save dynamic images (imagemagick needs to be installed)
+    #ani.save('ThreeLayers_NeuralNetwork_Iris.gif',writer='imagemagick',fps=60)#保存动画 (需要安装imagemagick)
