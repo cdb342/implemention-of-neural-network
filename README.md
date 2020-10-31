@@ -9,3 +9,4 @@
 - ### 适用于对于机器学习算法的学习与交流
 - ### 设置Layer_scale=[2],activation_function=[None_activation]，loss_function=CrossEntropy，即可实现二分类的逻辑回归
 - ### 设置Layer_scale=[c>=2],activation_function=[None_activation]，loss_function=CrossEntropy，即可实现c分类的softmax回归
+- ### 反向传播算法的向量化实现推导见附录
