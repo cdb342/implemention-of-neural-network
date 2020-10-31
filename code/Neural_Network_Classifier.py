@@ -1,6 +1,26 @@
+"""
+任意规模的神经网络分类器
+-----------------------
+内置Exam和Iris两个简单数据集和MNIST数据集（因为没有实现并行加速，所以无法在短时间内训练MNIST数据集，可以选择分割数据集的一部分进行训练）
+支持Adam,Momentum,Adagrad,RMSprop等优化器
+支持sigmoid,tanh,ReLU,ELU激活函数
+支持MSE和CrossEntropy损失函数
+支持自定义梯度下降每次迭代的mini-batch大小，隐藏层和输出层的规模以及每一层的激活函数
+支持绘制与保存损失函数值，准确率，分类边界随迭代次数的变化图（可通过save_contour参数选择是否在每次更新权值后保存绘制分类边界变化的参数）
+支持绘制与保存损失函数值，准确率随迭代次数的变化的静态图和最终的分类边界静态图
+------------------------
+适用于对于机器学习算法的学习与交流
+设置Layer_scale=[2],activation_function=[None_activation]，loss_function=CrossEntropy，即可实现二分类的逻辑回归
+设置Layer_scale=[c>=2],activation_function=[None_activation]，loss_function=CrossEntropy，即可实现c分类的softmax回归
+------------------------
+Author: cdb342
+Date: 2020/10/31
+Time: 17:13
+Versions: 2.0
+Homepage: https://github.com/cdb342
+"""
 import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib import animation
+import Neural_Network_Classifier_Visulization as vlz
 import load_data_mnist
 """
 数据集导入类
@@ -8,7 +28,7 @@ Exam():导入Exam数据集
 Iris():导入Iris数据集
 MNIST():导入MNIST数据集
 """
-class lode_dataset:
+class load_dataset:
     def Exam():
         train_X = np.loadtxt('./datasets/Exam/train/x.txt')
         train_y = np.loadtxt('./datasets/Exam/train/y.txt')
@@ -37,22 +57,52 @@ def Standardize(Standard_X,X):
     mean = np.mean(Standard_X)#计算数据的均值
     return (X - mean) / std#返回数据标准化的结果
 """
+Momentum优化器
+"""
+class Momentum():
+    def __init__(self,beta=0.9):
+        self.v=0
+        self.beta=beta
+    def optimise(self,g,i):
+        self.v = np.add(np.multiply(self.beta, self.v), np.multiply(1 - self.beta, g))
+        v_correct = np.divide(self.v, (1 - self.beta ** i))
+        return v_correct
+"""
+Adagrad优化器
+"""
+class Adagrad():
+    def __init__(self):
+        self.G=0
+    def optimise(self,g,i=0):
+        self.G=np.add(self.G,np.power(g,2))
+        return np.divide(g,np.power(np.add(self.G,10**(-8)),1/2))
+"""
+RMSprop优化器
+"""
+class RMSprop():
+    def __init__(self,beta=0.999):
+        self.s=0
+        self.beta=beta
+    def optimise(self,g,i):
+        self.s = np.add(np.multiply(self.beta, self.s), np.multiply(1 - self.beta, np.power(g, 2)))
+        s_correct = np.divide(self.s, (1 - self.beta ** i))
+        return np.divide(g,np.add(np.power(s_correct,1/2) , 10 ** (-8)))
+"""
 Adam优化器
 """
-# def Adam(v,s,g,i):
-#     v=0.9*v+0.1*g
-#     s=0.999*s+0.001*g**2
-#     v_correct = v/ (1 - 0.9 ** i)
-#     s_correct = s / (1 - 0.999 ** i)
-#     g=v_correct/(np.sqrt(s_correct) + 10 ** (-8))
-#     return v,s,g
-def Adam(v,s,g,i):
-    v=np.add(np.multiply(0.9,v),np.multiply(0.1,g))
-    s=np.add(np.multiply(0.999,s),np.multiply(0.001,np.power(g,2)))
-    v_correct =np.divide( v, (1 - 0.9 ** i))
-    s_correct = np.divide(s , (1 - 0.999 ** i))
-    g=np.divide(v_correct,np.add(np.power(s_correct,1/2) , 10 ** (-8)))
-    return v,s,g
+class Adam():
+    def __init__(self,beta1=0.9,beta2=0.999):
+        self.v=0
+        self.s=0
+        self.beta1=0.9
+        self.beta2=0.999
+    def optimise(self,g,i):
+        self.v=np.add(np.multiply(self.beta1,self.v),np.multiply(1-self.beta1,g))
+        self.s=np.add(np.multiply(self.beta2,self.s),np.multiply(1-self.beta2,np.power(g,2)))
+        v_correct =np.divide( self.v, (1 - self.beta1 ** i))
+        s_correct = np.divide(self.s , (1 - self.beta2 ** i))
+        g=np.divide(v_correct,np.add(np.power(s_correct,1/2) , 10 ** (-8)))
+        return g
 """
 sigmoid类
 activate:返回用sigmoid函数激活后的结果
@@ -60,12 +110,12 @@ gradient:返回sigmoid函数的导数
 """
 class sigmoid:
     def activate(z):
-        a=np.zeros(z.shape)
+        a=np.empty_like(z)
         a[z>=0]=1 / (1 + np.exp(-z[z>=0]))
         a[z<0]=np.exp(z[z<0])/(1+np.exp(z[z<0]))
         return a
     def gradient(z):
-        a = np.zeros(z.shape)
+        a = np.empty_like(z)
         a[z >= 0] = 1 / (1 + np.exp(-z[z >= 0]))
         a[z < 0] = np.exp(z[z < 0]) / (1 + np.exp(z[z < 0]))
         return np.multiply(a,1-a)
@@ -85,7 +135,7 @@ ReLU类
 activate:返回用ReLU函数激活后的结果
 gradient:返回ReLU函数的导数
 """
-class  ReLU:
+class ReLU:
     def activate(z):
         z[z<=0]=0
         return z
@@ -108,37 +158,36 @@ class ELU():
         z[z<=0]=self.alpha*np.exp(z[z<=0])
         z[z>0]=1
         return z
+class None_activation:
+    def activate(z):
+        return z
+    def gradient(z):
+        return np.ones(z.shape)
 """
 MSE类
-activate:返回用MSE函数激活后的结果
-gradient:返回MSE函数的导数
+calculate:返回均方根误差
+gradient:返回均方根误差的导数
 """
 class MSE:
-    def activate(Hypothesis_X, y):
+    def calculate(Hypothesis_X, y):
         return np.sum((Hypothesis_X-y)**2)/2
     def gradient(Hypothesis_X, y):
         return Hypothesis_X-y
-# class CrossEntropy:
-#     def activate(Hypothesis_X, y):
-#         activate_results=-np.sum(np.multiply(y[Hypothesis_X>0],np.log(Hypothesis_X[Hypothesis_X>0])))
-#         return activate_results
-#     def gradient(Hypothesis_X, y):
-#         gradient_results=np.zeros(Hypothesis_X.shape)
-#         gradient_results[Hypothesis_X>0]=-y[Hypothesis_X!=0]/(Hypothesis_X[Hypothesis_X!=0])
-#         return gradient_results
 """
 CrossEntropy类
-activate:返回用CrossEntropy函数激活后的结果
-gradient:返回CrossEntropy函数的导数
+activate:返回交叉熵误差
+gradient:返回交叉熵误差的导数
 """
 class CrossEntropy:
-    def activate(Hypothesis_X, y):
-        return -np.sum(np.multiply(y,np.log(Hypothesis_X+10**(-8))))
+    def calculate(Hypothesis_X, y):
+        z=np.exp(Hypothesis_X) / np.sum(np.exp(Hypothesis_X), axis=0).reshape((1, -1))
+        return -np.sum(np.multiply(np.log(z),y))
     def gradient(Hypothesis_X, y):
-        return -y/(Hypothesis_X+10**(-8))
+        z = np.exp(Hypothesis_X) / np.sum(np.exp(Hypothesis_X), axis=0).reshape((1, -1))
+        return z-y
 """
 神经网络主体
-__init__:输入神经网络规模、每层的激活函数、学习率、迭代次数、batch大小、输入特征数、类别数、损失函数进行初始化
+__init__:输入神经网络规模、每层的激活函数、学习率、迭代次数、batch大小、输入特征数、类别数、损失函数、优化器进行初始化
 feedback:实现前向传播
 backforword:反向传播更新梯度
 fit:训练权值并储存每次迭代的损失函数和准确率
@@ -146,8 +195,8 @@ predict:预测分类结果
 accuracy:计算准确率
 """
 class Arbitrary_Scale_Neural_Network_for_Classification():
-    def __init__(self,Layer_scale,activation_function,
-                 learning_rate=0.01,times_interation=500,batch_size=64,feature_num=2,class_num=2,loss_function=MSE):
+    def __init__(self,Layer_scale,activation_function,learning_rate=0.01,times_interation=500,
+                 batch_size=64,feature_num=2,class_num=2,loss_function=MSE,optimizer=Adam,save_contour=False):
         self.Layer_scale = Layer_scale  # 隐藏层和输出层的规模
         self.activation_function = activation_function  # 每层的激活函数
         self.yita=learning_rate#学习率，默认为0.01
@@ -156,8 +205,11 @@ class Arbitrary_Scale_Neural_Network_for_Classification():
         self.feature_num=feature_num#输入特征数，默认为2
         self.class_num=class_num#类别数，默认为2
         self.loss_function=loss_function#使用的损失函数，默认使用MSE
+        self.optimizer_W=optimizer()#优化W的梯度的优化器
+        self.optimizer_b=optimizer()#优化b的梯度的优化器
+        self.save_contour=save_contour#是否在每次更新权值后生成并保存每个网格点的预测值
         """
-        初始化权值和梯度矩阵及Adam优化的参数
+        初始化权值和梯度矩阵
         为了使参数矩阵的索引与推导时的上标一致，在索引0的位置多添加了一个数，实际计算时不会用到
         """
         self.W=[0]
@@ -171,10 +223,6 @@ class Arbitrary_Scale_Neural_Network_for_Classification():
         self.gradient_W = [0] * (len(self.Layer_scale)+1)
         self.gradient_b = [0] * (len(self.Layer_scale)+1)
         self.gradient_Z = [0] * (len(self.Layer_scale)+1)
-        self.s_W=[0] * (len(self.Layer_scale)+1)
-        self.v_W=[0] * (len(self.Layer_scale)+1)
-        self.s_b=[0] * (len(self.Layer_scale)+1)
-        self.v_b=[0] * (len(self.Layer_scale)+1)
     def feedforword(self,X):
         self.A=[X]
         self.Z=[0]
@@ -182,7 +230,7 @@ class Arbitrary_Scale_Neural_Network_for_Classification():
             self.Z.append(np.dot(self.W[i+1],self.A[i])+self.b[i+1])#第i+1层未激活的值
             self.A.append(self.activation_function[i].activate(self.Z[i+1]))#第i+1层激活后的值
         return self.A[-1]#返回输出层
-    def backforword(self):
+    def backforword(self,epo):
         """
         使用反向传播算法计算每一层的梯度
         """
@@ -197,23 +245,38 @@ class Arbitrary_Scale_Neural_Network_for_Classification():
         """
         使用Adam算法对梯度进行优化并更新权值
         """
-        # for i in range(len(self.Layer_scale)):
-        #     self.s_W[-1-i],self.v_W[-1-i],self.gradient_W[-1-i]=Adam(self.s_W[-1-i],self.v_W[-1-i],self.gradient_W[-1-i],i+1)
-        #     self.s_b[-1-i],self.v_b[-1-i],self.gradient_b[-1-i]=Adam(self.s_b[-1-i],self.v_b[-1-i],self.gradient_b[-1-i],i+1)
-        #     self.W[-1-i]-=self.yita*self.gradient_W[-1-i]
-        #     self.b[-1-i]-=self.yita*self.gradient_b[-1-i]
-        self.s_W, self.v_W, self.gradient_W = Adam(self.s_W, self.v_W,self.gradient_W, i + 1)
-        self.s_b, self.v_b, self.gradient_b = Adam(self.s_b, self.v_b,self.gradient_b, i + 1)
+        self.gradient_W=self.optimizer_W.optimise(self.gradient_W, epo + 1)
+        self.gradient_b=self.optimizer_b.optimise(self.gradient_b,epo+1)
         self.W -= np.multiply(self.yita , self.gradient_W)
         self.b -= np.multiply(self.yita ,self.gradient_b)
-    def fit(self,X,y,test_X,test_y):
-        self.X = np.asarray(X)
-        self.y=np.asarray(y)
-        y = np.eye(len(np.unique(y)))[y.astype(int)].T#把标签转化为one-hot矩阵
+    def fit(self,train_X,train_y,test_X,test_y,interval=5):
+        self.train_X=np.asarray(train_X)
+        self.test_X=np.asarray(test_X)
+        train_X_st = Standardize(self.train_X, self.train_X)  # 标准化训练集
+        test_X_st = Standardize(self.train_X, self.test_X)  # 标准化测试集
+        self.train_X_st = train_X_st
+        self.test_X_st = test_X_st
+        self.train_y=np.asarray(train_y)
+        self.test_y = np.asarray(test_y)
+        y = np.eye(len(np.unique(self.train_y)))[self.train_y.astype(int)].T#把标签转化为one-hot矩阵
+        self.interval=interval
         self.loss=[]
-        index = 0#batch左边索引
         self.accuracy_train=[]
         self.accuracy_test=[]
+        index = 0  # batch边界索引
+        """
+        e则生成网格矩阵，用以绘制分类边界
+        """
+        self.left_border = int(np.min([np.min(train_X[:, 0]), np.min(test_X[:, 0])]))
+        self.right_border = int(np.max([np.max(train_X[:, 0]), np.max(test_X[:, 0])]) + 1)
+        self.bottom_border = int(np.min([np.min(train_X[:, 1]), np.min(test_X[:, 1])]))
+        self.top_border = int(np.max([np.max(train_X[:, 1]), np.max(test_X[:, 1])]) + 1)
+        feature1 = np.linspace(self.left_border, self.right_border, 400)
+        feature2 = np.linspace(self.bottom_border, self.top_border, 400)
+        self.broadcast_feature1, self.broadcast_feature2 = np.meshgrid(feature1, feature2)  # 生成网格矩阵，用以绘制分类边界
+        XX = np.c_[self.broadcast_feature1.ravel(), self.broadcast_feature2.ravel()]  # 平铺并合并self.broadcast_feature1和self.broadcast_feature2，用以预测每个点的分类值
+        self.XX_st = Standardize(train_X, XX)  # 标准化
+        self.ZZ=[]
         for i in range(self.times):
             """
             计算每次迭代的batch
@@ -221,29 +284,37 @@ class Arbitrary_Scale_Neural_Network_for_Classification():
             y_batch:每次迭代的标签集
             """
             next_index=index + self.batch_size
-            if next_index<=self.X.shape[0]:
-                X_batch = self.X[index:next_index].reshape(-1,self.feature_num)
+            if next_index<=self.train_X_st.shape[0]:
+                X_batch = self.train_X_st[index:next_index].reshape(-1,self.feature_num)
                 y_batch=y[:, index:next_index].reshape(self.class_num,-1)
             else:
-                index2=next_index - self.X.shape[0]
-                X_batch=np.concatenate((self.X[index:].reshape(-1,self.feature_num),self.X[:index2].reshape(-1,self.feature_num)),axis=0)
+                index2=next_index - self.train_X_st.shape[0]
+                X_batch=np.concatenate((self.train_X_st[index:].reshape(-1,self.feature_num),self.train_X_st[:index2].reshape(-1,self.feature_num)),axis=0)
                 y_batch = np.concatenate((y[:, index:].reshape(self.class_num,-1), y[:, :index2].reshape(self.class_num,-1)),axis=1)
-            index = next_index % self.X.shape[0]
+            index = next_index % self.train_X_st.shape[0]
+            if i%self.interval==0 or i==self.times-1:
+                """
+                如果save_contour=True，每迭代interval次预测每个网格点的类别并保存,以及保存迭代完成后的预测结果
+                """
+                if self.save_contour:
+                    self.ZZ.append(self.predict(self.XX_st).reshape(self.broadcast_feature1.shape))
+                """
+                每迭代interval次计算并储存用每次更新的权值预测的测试集和训练集预测准确率,以及保存迭代完成后的预测准确率
+                """
+                train_predict_y = self.predict(self.train_X_st)
+                test_predict_y = self.predict(self.test_X_st)
+                self.accuracy_train.append(self.accuracy(train_predict_y, self.train_y))
+                self.accuracy_test.append(self.accuracy(test_predict_y, self.test_y))
             """
-            计算并储存用每次更新的权值预测的测试集和训练集预测准确率
-            """
-            train_predict_y = self.predict(self.X)
-            test_predict_y = self.predict(test_X)
-            self.accuracy_train.append(self.accuracy(train_predict_y, self.y))
-            self.accuracy_test.append(self.accuracy(test_predict_y, test_y))
-            """
-            计算并储存用每次更新的权值预测后的损失函数
+            计算并储存用每次更新的权值预测后的损失函数值
             """
             batch_Hypothesis_X=self.feedforword(X_batch.T)
-            self.loss.append(self.loss_function.activate(batch_Hypothesis_X, y_batch))
+            if i%self.interval==0:
+                self.loss.append(self.loss_function.calculate(batch_Hypothesis_X, y_batch))#每迭代interval次计算并储存一次,以及保存迭代完成后的损失函数值
 
             self.gradient_A[-1] = self.loss_function.gradient(batch_Hypothesis_X, y_batch)#更新gradiengt_A[-1]
-            self.backforword()#反向传播更新梯度
+            if i<self.times-1:#最后一次迭代过后不更新梯度
+                self.backforword(i)#反向传播更新梯度
     def predict(self,X):
         Hypothesis_X = self.feedforword(X.T)
         predict_y=np.argmax(Hypothesis_X,axis=0)
@@ -253,75 +324,17 @@ class Arbitrary_Scale_Neural_Network_for_Classification():
         return ac
 
 if __name__ == '__main__':
-    aa = Arbitrary_Scale_Neural_Network_for_Classification(Layer_scale=[8, 8, 3],
-                                                           activation_function=[sigmoid, sigmoid, sigmoid],
-                                                           learning_rate=0.01, times_interation=1000, batch_size=40,
-                                                           feature_num=2, class_num=3, loss_function=CrossEntropy)
-    train_X, train_y, test_X, test_y = lode_dataset.Iris()
-    train_X_st = Standardize(train_X, train_X)#标准化训练集
-    test_X_st = Standardize(train_X, test_X)#标准化测试集
-    aa.fit(train_X_st, train_y, test_X_st, test_y)#
-    predict_y_train = aa.predict(train_X_st)
+    aa = Arbitrary_Scale_Neural_Network_for_Classification(Layer_scale=[10,8,2],
+                                                           activation_function=[ ELU(),tanh,None_activation],
+                                                           learning_rate=0.01, times_interation=500, batch_size=64,
+                                                           feature_num=2, class_num=2, loss_function=MSE,optimizer=Adam,save_contour=True)
+    train_X, train_y, test_X, test_y = load_dataset.Exam()
+    aa.fit(train_X, train_y, test_X, test_y,interval=20)
     print("training set accuracy:", aa.accuracy_train[-1])#输出训练集预测准确率
-    predict_y_test = aa.predict(test_X_st)
     print("test set accuracy:", aa.accuracy_test[-1])#输出测试集预测准确率
-    print(aa.loss)
-
-    """
-    可视化部分
-    """
-    fig, ax = plt.subplots(1, 3, figsize=(15, 5))  # 创建画布和坐标轴
-    """
-    计算分布图的坐标轴端点位置
-    """
-    left_border=int(np.min([np.min(train_X[:,0]),np.min(test_X[:,0])]))
-    right_border=int(np.max([np.max(train_X[:,0]),np.max(test_X[:,0])])+1)
-    bottom_border=int(np.min([np.min(train_X[:,1]),np.min(test_X[:,1])]))
-    top_border=int(np.max([np.max(train_X[:,1]),np.max(test_X[:,1])])+1)
-
-    ax[0].set_xlim(left_border, right_border)  # 设置x轴坐标
-    ax[0].set_ylim(bottom_border, top_border)  # 设置y轴坐标
-    ax[0].scatter(train_X[:, 0], train_X[:, 1], c=train_y, cmap='Dark2',s=10,marker='o',label='Training set')  # 在第一个坐标轴上绘制训练集的分布
-    ax[0].scatter(test_X[:, 0], test_X[:, 1], c=test_y, cmap='Dark2',s=10,marker='x',label='Test set')  # 在第一个坐标轴上绘制测试集的分布
-    ax[0].legend()#显示图例
-    ax[0].set_xlabel("Feature1")  # 设置x轴标签
-    ax[0].set_ylabel("Feature2")  # 设置y轴标签
-    ax[0].set_title("Classification Boundaries")  # 设置标题
-    ax[1].set_xlim(0, aa.times-1)
-    ax[1].set_ylim(int(np.min(aa.loss)), int(np.max(aa.loss)+1))
-    ax[1].set_xlabel("Iteration")
-    ax[1].set_ylabel("Cost Function")
-    ax[1].set_title("Cost Change")
-    ax[2].set_xlim(0, aa.times-1)
-    ax[2].set_ylim(0, 1)
-    ax[2].set_xlabel("Iteration")
-    ax[2].set_ylabel("Accuracy")
-    ax[2].set_title("Accuracy Change")
-
-    """
-    绘制分类边界
-    仅适输入特征数为2的情况
-    """
-    feature1 = np.linspace(left_border, right_border, 400)
-    feature2 = np.linspace(bottom_border, top_border, 400)
-    XX1, XX2 = np.meshgrid(feature1, feature2)  # 生成网格矩阵，用以绘制分类边界
-    XX = np.c_[XX1.ravel(), XX2.ravel()]  # 平铺并合并XX1和XX2，用以预测每个点的分类值
-    XX_st=Standardize(train_X,XX)#标准化
-    ZZ=aa.predict(XX_st).reshape(XX1.shape)
-    cont = ax[0].contourf(XX1, XX2, ZZ, alpha=0.2, cmap='Set3')  # 在第一个坐标轴上绘制分类边界
-
-    line_loss, = ax[1].plot([], [])  # 在第二个坐标轴上绘制损失函数下降情况
-    training_accuracy = ax[2].scatter([], [], label='training set', s=10,c='red')  #在第三个坐标轴上绘制训练集预测准确率的变化
-    test_accuracy = ax[2].scatter([], [], label='test set',s=10)  # 在第三个坐标轴上绘制测试集预测准确率的变化
-    ite = np.arange(aa.times)  #根据迭代次数生成数组
-
-    def animate(i):  # 动画更新函数
-        line_loss.set_data(ite[:i], aa.loss[:i])  #更新每次迭代的损失函数
-        training_accuracy.set_offsets(np.stack((ite[:i], aa.accuracy_train[:i]),axis=1))  # 更新训练集预测准确率随迭代的变化
-        test_accuracy.set_offsets(np.stack((ite[:i], aa.accuracy_test[:i]),axis=1))  # 更新测试集预测准确率随迭代的变化
-        return  line_loss, training_accuracy, test_accuracy
-
-    ani = animation.FuncAnimation(fig, animate, frames=aa.times, interval=1)  #生成动画
-    plt.legend()  #显示图例
-    plt.show()
-    #ani.save('ThreeLayers_NeuralNetwork_Iris.gif',writer='imagemagick',fps=60)#保存动画 (需要安装imagemagick)
+    print("loss change:",aa.loss)#输出损失函数变化值
+    vis=vlz.visualize(aa)
+    vis.show_all_animation()#展示损失函数值，准确率和分类边界的变化，仅适用于save_contour=True
+    #vis.show_loss_and_accuracy_animation()#展示损失函数值，准确率的变化
+    #vis.show_static()#静态展示展示损失函数值，准确率的变化和最终的分类边界
+    #vis.ani.save('NeuralNetwork.gif',writer='imagemagick',fps=60)#保存动画 (需要安装imagemagick)
