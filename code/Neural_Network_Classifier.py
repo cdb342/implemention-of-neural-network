@@ -10,8 +10,9 @@
 支持绘制与保存损失函数值，准确率随迭代次数的变化的静态图和最终的分类边界静态图
 ------------------------
 适用于对于机器学习算法的学习与交流
-设置Layer_scale=[2],activation_function=[None_activation]，loss_function=CrossEntropy，即可实现二分类的逻辑回归
-设置Layer_scale=[c>=2],activation_function=[None_activation]，loss_function=CrossEntropy，即可实现c分类的softmax回归
+设置Layer_scale=[2],class_num=2,activation_function=[None_activation]，loss_function=CrossEntropy，即可实现二分类的逻辑回归
+设置Layer_scale=[c>=2],class_num=c,activation_function=[None_activation]，loss_function=CrossEntropy，即可实现c分类的softmax回归
+class_num为冗余参数，暂未删去
 ------------------------
 Author: cdb342
 Date: 2020/10/31
