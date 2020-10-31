@@ -1,5 +1,5 @@
 # 任意规模的神经网络分类器
-### - 内置Exam和Iris两个简单数据集和MNIST数据集（因为没有实现并行加速，所以无法在短时间内训练MNIST数据集，可以选择分割数据集的一部分进行训练）
+- ### 内置Exam和Iris两个简单数据集和MNIST数据集（因为没有实现并行加速，所以无法在短时间内训练MNIST数据集，可以选择分割数据集的一部分进行训练）
 ### 支持Adam,Momentum,Adagrad,RMSprop等优化器
 ### 支持sigmoid,tanh,ReLU,ELU激活函数
 ### 支持MSE和CrossEntropy损失函数
