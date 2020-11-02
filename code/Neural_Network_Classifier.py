@@ -220,10 +220,12 @@ class Arbitrary_Scale_Neural_Network_for_Classification():
         for i in range(len(self.Layer_scale)-1):
             self.W.append(np.random.randn(self.Layer_scale[i+1],self.Layer_scale[i]))
             self.b.append(np.random.randn(self.Layer_scale[i+1], 1))
-        self.gradient_A=[0]*(len(self.Layer_scale)+1)
-        self.gradient_W = [0] * (len(self.Layer_scale)+1)
-        self.gradient_b = [0] * (len(self.Layer_scale)+1)
-        self.gradient_Z = [0] * (len(self.Layer_scale)+1)
+        self.W=np.asarray(self.W,dtype=object)#改变数据类型，否则会在高版本numpy出现Creating an ndarray from ragged nested sequences问题
+        self.b = np.asarray(self.b,dtype=object)
+        self.gradient_A=np.asarray([0]*(len(self.Layer_scale)+1)).astype(object)
+        self.gradient_W = np.asarray([0] * (len(self.Layer_scale)+1)).astype(object)
+        self.gradient_b =np.asarray( [0] * (len(self.Layer_scale)+1)).astype(object)
+        self.gradient_Z = np.asarray([0] * (len(self.Layer_scale)+1)).astype(object)
     def feedforword(self,X):
         self.A=[X]
         self.Z=[0]
@@ -251,13 +253,14 @@ class Arbitrary_Scale_Neural_Network_for_Classification():
         self.W -= np.multiply(self.yita , self.gradient_W)
         self.b -= np.multiply(self.yita ,self.gradient_b)
     def fit(self,train_X,train_y,test_X,test_y,interval=5):
-        self.train_X=np.asarray(train_X)
+        random_index=np.random.permutation(np.arange(len(train_y)))#生成随机索引，以打乱训练集的顺序
+        self.train_X=(np.asarray(train_X))[random_index]
         self.test_X=np.asarray(test_X)
         train_X_st = Standardize(self.train_X, self.train_X)  # 标准化训练集
         test_X_st = Standardize(self.train_X, self.test_X)  # 标准化测试集
         self.train_X_st = train_X_st
         self.test_X_st = test_X_st
-        self.train_y=np.asarray(train_y)
+        self.train_y=np.asarray(train_y)[random_index]
         self.test_y = np.asarray(test_y)
         y = np.eye(len(np.unique(self.train_y)))[self.train_y.astype(int)].T#把标签转化为one-hot矩阵
         self.interval=interval
@@ -325,11 +328,11 @@ class Arbitrary_Scale_Neural_Network_for_Classification():
         return ac
 
 if __name__ == '__main__':
-    aa = Arbitrary_Scale_Neural_Network_for_Classification(Layer_scale=[10,8,2],
+    aa = Arbitrary_Scale_Neural_Network_for_Classification(Layer_scale=[10,8,3],
                                                            activation_function=[ ELU(),tanh,None_activation],
                                                            learning_rate=0.01, times_interation=500, batch_size=64,
-                                                           feature_num=2, class_num=2, loss_function=MSE,optimizer=Adam,save_contour=True)
-    train_X, train_y, test_X, test_y = load_dataset.Exam()
+                                                           feature_num=2, class_num=3, loss_function=MSE,optimizer=Adam,save_contour=True)
+    train_X, train_y, test_X, test_y = load_dataset.Iris()
     aa.fit(train_X, train_y, test_X, test_y,interval=20)
     print("training set accuracy:", aa.accuracy_train[-1])#输出训练集预测准确率
     print("test set accuracy:", aa.accuracy_test[-1])#输出测试集预测准确率
