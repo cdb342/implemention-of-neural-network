@@ -95,14 +95,22 @@ class Adam():
     def __init__(self,beta1=0.9,beta2=0.999):
         self.v=0
         self.s=0
-        self.beta1=0.9
-        self.beta2=0.999
+        self.beta1=beta1
+        self.beta2=beta2
     def optimise(self,g,i):
         self.v=np.add(np.multiply(self.beta1,self.v),np.multiply(1-self.beta1,g))
         self.s=np.add(np.multiply(self.beta2,self.s),np.multiply(1-self.beta2,np.power(g,2)))
         v_correct =np.divide( self.v, (1 - self.beta1 ** i))
         s_correct = np.divide(self.s , (1 - self.beta2 ** i))
         g=np.divide(v_correct,np.add(np.power(s_correct,1/2) , 10 ** (-8)))
+        return g
+"""
+无优化器类
+"""
+class None_Opimizer:
+    def __init__(self):
+        pass
+    def optimise(self,g,i):
         return g
 """
 sigmoid类
@@ -159,6 +167,9 @@ class ELU():
         z[z<=0]=self.alpha*np.exp(z[z<=0])
         z[z>0]=1
         return z
+"""
+无激活函数类
+"""
 class None_activation:
     def activate(z):
         return z
@@ -328,17 +339,18 @@ class Arbitrary_Scale_Neural_Network_for_Classification():
         return ac
 
 if __name__ == '__main__':
-    aa = Arbitrary_Scale_Neural_Network_for_Classification(Layer_scale=[10,8,3],
-                                                           activation_function=[ ELU(),tanh,None_activation],
+    aa = Arbitrary_Scale_Neural_Network_for_Classification(Layer_scale=[10,10],
+                                                           activation_function=[sigmoid,None_activation],
                                                            learning_rate=0.01, times_interation=500, batch_size=64,
-                                                           feature_num=2, class_num=3, loss_function=MSE,optimizer=Adam,save_contour=True)
-    train_X, train_y, test_X, test_y = load_dataset.Iris()
+                                                           feature_num=784, class_num=10, loss_function=MSE,optimizer=None_Opimizer
+                                                           ,save_contour=False)#当feature_num大于2，需要设置save_contour=False
+    train_X, train_y, test_X, test_y = load_dataset.MNIST()
     aa.fit(train_X, train_y, test_X, test_y,interval=20)
     print("training set accuracy:", aa.accuracy_train[-1])#输出训练集预测准确率
     print("test set accuracy:", aa.accuracy_test[-1])#输出测试集预测准确率
     print("loss change:",aa.loss)#输出损失函数变化值
     vis=vlz.visualize(aa)
-    vis.show_all_animation()#展示损失函数值，准确率和分类边界的变化，仅适用于save_contour=True
-    #vis.show_loss_and_accuracy_animation()#展示损失函数值，准确率的变化
+    #vis.show_all_animation()#展示损失函数值，准确率和分类边界的变化，仅适用于save_contour=True
+    vis.show_loss_and_accuracy_animation()#展示损失函数值，准确率的变化
     #vis.show_static()#静态展示展示损失函数值，准确率的变化和最终的分类边界
     #vis.ani.save('NeuralNetwork.gif',writer='imagemagick',fps=60)#保存动画 (需要安装imagemagick)
